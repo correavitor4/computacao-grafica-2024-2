@@ -1,0 +1,143 @@
+<html>
+
+<body>
+  <canvas id="webgl-canvas"></canvas>
+  <script type="text/javascript" src="Common/MV.js"></script>
+  <script>
+    function loadShaderSource(url) {
+      return fetch(url)
+        .then((response) => response.text())
+        .catch((error) => {
+          console.error("Erro ao carregar o shader:", error);
+          return "";
+        });
+    }
+
+    async function InitializeWebGL() {
+      // Pega o canvas pelo id
+      let canvas = document.getElementById("webgl-canvas");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      let aspect = canvas.width / canvas.height;
+
+      //   Pega o contexto do webgl2 e printa um erro no console caso não esteja disponível
+      let gl = canvas.getContext("webgl2");
+      if (!gl) {
+        console.error("WebGL 2 not available");
+        document.body.innerHTML =
+          "This example requires WebGL 2 which is not present on this system.";
+      }
+
+      //   Define a cor que será usada ao chamar o comando clear
+      gl.clearColor(0, 0, 0, 1);
+
+      //   Faz testes de profundidade para garantir que objetos que estejam na frente sejam rederizados em cima dos que estão por tras
+      gl.enable(gl.DEPTH_TEST);
+
+      //   São dois arquivos contendo código em GLSL
+      let vsSource = await loadShaderSource("shaders/vertex_shader.glsl")
+      let fsSource = await loadShaderSource(
+        "shaders/fragment_shader.glsl"
+      )
+
+      //   Cria um shader, passa o vsSource para ele e compila
+      let vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vsSource);
+      gl.compileShader(vertexShader);
+      if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(vertexShader));
+      }
+
+      //   Também cria um shader e compila
+      let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fsSource);
+      gl.compileShader(fragmentShader);
+      if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(fragmentShader));
+      }
+
+      //   Cria programa webGl e anexa os shaders, em seguida link o programa e usa o programa para a renderização
+      let program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getShaderInfoLog(program));
+      }
+      gl.useProgram(program);
+
+      let vertex = [
+        vec4(0, 0.5, 0, 1.0),
+        vec4(0.5, -0.5, 0, 1.0),
+        vec4(-0.5, -0.5, -0, 1.0),
+      ];
+
+      let colors = [
+        vec4(1.0, 0, 0, 1.0),
+        vec4(0, 1.0, 0, 1.0),
+        vec4(0, 0, 1.0, 1.0),
+      ];
+
+      let positionArray = [];
+      positionArray.push(vertex[0]);
+      positionArray.push(vertex[1]);
+      positionArray.push(vertex[2]);
+
+      let colorArray = [];
+      colorArray.push(colors[0]);
+      colorArray.push(colors[1]);
+      colorArray.push(colors[2]);
+
+      //   Aqui o buffer é criado, e em seguida o código diz à GPU que o buffer será usado comoo um Buffer de Array
+      // Após isso, o buffer é carregado na GPU
+      let positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
+
+      // Uma variável é chamada 'position' é definida no código GLSL.
+      //   Aqui pegamos o 'ponteiro' para a variável
+      let positionLoc = gl.getAttribLocation(program, "position");
+      //   Aqui especificamos como a GPU deve interpretar os dados associados ao atributo, como o número de componentes
+      // por vértice (4), o tipo de dados (FLOAT), se os dados devem ser normalizados (FALSE), o
+      // deslocamento e o offset (ambos 0)
+      gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
+      //   Habilita o atributo no vértice.
+      gl.enableVertexAttribArray(positionLoc);
+
+      //   Faz algo parecido com o que foi feito acima, mas para o atributo (variável) 'color'
+      let colorBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, flatten(colorArray), gl.STATIC_DRAW);
+      let colorLoc = gl.getAttribLocation(program, "color");
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(colorLoc);
+
+      //   DRAW
+      //   Aqui iremos rendizar, continuamente e em loop, a cena. O loop é do próprio WEBGL
+
+      // Esta variável define a função que será chamada repetidamente para renderizar o conteúdo da cena
+      let render = function () {
+        // Aqui limpamos o buffer da tela antes do próximo quadro ser renderizado.
+        // São limpos o buffer de cores e de pronfundidade (importante para o funcionamento do gl.DEPTH_TEST)
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // Aqui iremos desenhar os vértices, usando a primitiva de triângulos
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        // Esse método irá solicitar ao navegador que chame novamente a função render assim
+        //  que possível (acompanhando a taxa de quadros do monitor)
+        requestAnimationFrame(render);
+      };
+
+
+      //   Chama a função render pela primeira vez, iniciando o loop de animação.
+      // Sem isso, o loop nunca seria iniciado, pois requestAnimationFrame só começa a ser
+      //  chamado após a primeira invocação de render.
+      render();
+
+    }
+
+    InitializeWebGL();
+  </script>
+</body>
+
+</html>
